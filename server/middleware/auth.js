@@ -5,9 +5,15 @@ const authenticate = (req, res, next) => {
   if (!token) return res.status(401).json({ message: 'No token provided' });
   try {
     const decoded = verifyToken(token);
-    req.user = decoded;
+    console.log('Decoded token:', decoded); 
+    if (!decoded || !decoded.id) {
+      console.error('Token decoding error: No id field', decoded);
+      return res.status(401).json({ message: 'Invalid token payload' });
+    }
+    req.user = { id: decoded.id }; // Explicitly set id
     next();
   } catch (error) {
+    console.error('Token verification error:', error.message);
     res.status(401).json({ message: error.message });
   }
 };

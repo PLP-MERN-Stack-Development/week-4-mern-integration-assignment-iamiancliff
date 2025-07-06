@@ -109,3 +109,58 @@ exports.createUser = [
     }
   }
 ];
+
+exports.updatePost = [
+  body('title').optional().trim().isLength({ min: 3, max: 100 }).withMessage('Title must be 3-100 characters'),
+  body('content').optional().trim().isLength({ min: 10 }).withMessage('Content must be at least 10 characters'),
+  body('author').optional().trim().notEmpty().withMessage('Author is required'),
+  body('categories').optional().isArray({ min: 1 }).withMessage('At least one category is required'),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+      const { id } = req.params;
+      const { title, content, author, categories } = req.body;
+      const post = await Post.findById(id);
+      if (!post) return res.status(404).json({ message: 'Post not found' });
+      console.log('Post author:', post.author, 'Req user id:', req.user.id);
+      // Fetch user to get username
+      const user = await User.findById(req.user.id);
+      if (!user || post.author !== user.username && req.user.id !== 'admin') {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+      if (categories) {
+        const validCategories = await Category.find({ _id: { $in: categories } });
+        if (validCategories.length !== categories.length) return res.status(400).json({ message: 'Invalid category IDs' });
+      }
+      post.title = title || post.title;
+      post.content = content || post.content;
+      post.author = author || post.author;
+      post.categories = categories || post.categories;
+      post.updatedAt = Date.now();
+      await post.save();
+      res.json(post);
+    } catch (error) {
+      next(error);
+    }
+  }
+];
+
+// Delete Post
+exports.deletePost = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const post = await Post.findById(id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    console.log('Post author:', post.author, 'Req user id:', req.user.id); // Debug
+    // Fetch user to get username
+    const user = await User.findById(req.user.id);
+    if (!user || post.author !== user.username && req.user.id !== 'admin') {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    await Post.findByIdAndDelete(id);
+    res.json({ message: 'Post deleted' });
+  } catch (error) {
+    next(error);
+  }
+};
